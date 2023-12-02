@@ -53,8 +53,8 @@ class GraphSAGELayer(nn.Module):
                 if not lin_before_mp:
             rst = self.fc_self(h_self) + h_neigh
             return rst
-def expand_as_pair(input_, g=None):
 
+def expand_as_pair(input_, g=None):
     if isinstance(input_, tuple):
         return input_
     elif g is not None and g.is_block:
