@@ -21,14 +21,14 @@ class GraphSAGELayer(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.linear1.weight.size(1))
-
-
-        self.linear1.weight.data.uniform_(-stdv, stdv)
-        self.linear2.weight.data.uniform_(-stdv, stdv)
-        if self.linear1.bias is not None:
-            self.linear1.bias.data.uniform_(-stdv, stdv)
-            self.linear2.bias.data.uniform_(-stdv, stdv)
+        gain = nn.init.calculate_gain("relu")
+        if self._aggre_type == "pool":
+            nn.init.xavier_uniform_(self.fc_pool.weight, gain=gain)
+        if self._aggre_type == "lstm":
+            self.lstm.reset_parameters()
+        if self._aggre_type != "gcn":
+            nn.init.xavier_uniform_(self.fc_self.weight, gain=gain)
+        nn.init.xavier_uniform_(self.fc_neigh.weight, gain=gain)
 
     def forward(self, graph, feat):
         with graph.local_scope():
