@@ -23,6 +23,7 @@ class GraphSAGELayer(nn.Module):
     def reset_parameters(self):
         stdv = 1. / math.sqrt(self.linear1.weight.size(1))
 
+
         self.linear1.weight.data.uniform_(-stdv, stdv)
         self.linear2.weight.data.uniform_(-stdv, stdv)
         if self.linear1.bias is not None:
@@ -31,28 +32,31 @@ class GraphSAGELayer(nn.Module):
 
     def forward(self, graph, feat):
         with graph.local_scope():
-            feat_src = feat_dst = self.feat_drop(feat)
-            if graph.is_block:
-                feat_dst = feat_src[: graph.number_of_dst_nodes()]
-            msg_fn = fn.copy_u("h", "m")
-            h_self = feat_dst
+                feat_src = feat_dst = self.feat_drop(feat)
+                if graph.is_block:
+                    feat_dst = feat_src[: graph.number_of_dst_nodes()]
+                msg_fn = fn.copy_u("h", "m")
+                h_self = feat_dst
 
-            if graph.num_edges() == 0:
-                graph.dstdata["neigh"] = torch.zeros(
-                    feat_dst.shape[0], self._in_src_feats
-                ).to(feat_dst)
+                if graph.num_edges() == 0:
+                    graph.dstdata["neigh"] = torch.zeros(
+                        feat_dst.shape[0], self._in_src_feats
+                    ).to(feat_dst)
 
-            lin_before_mp = self._in_src_feats > self._out_feats
+                lin_before_mp = self._in_src_feats > self._out_feats
 
-            if self._aggre_type == "mean":
-                graph.srcdata["h"] = (
-                    self.fc_neigh(feat_src) if lin_before_mp else feat_src
-                )
-                graph.update_all(msg_fn, fn.mean("m", "neigh"))
-                h_neigh = graph.dstdata["neigh"]
-                if not lin_before_mp:
-            rst = self.fc_self(h_self) + h_neigh
-            return rst
+                if self._aggre_type == "mean":
+                    graph.srcdata["h"] = (
+                        self.fc_neigh(feat_src) if lin_before_mp else feat_src
+                    )
+                    graph.update_all(msg_fn, fn.mean("m", "neigh"))
+                    h_neigh = graph.dstdata["neigh"]
+                    if not lin_before_mp:
+                        h_neigh = self.fc_neigh(h_neigh)
+
+                rst = self.fc_self(h_self) + h_neigh
+                return rst
+
 
 def expand_as_pair(input_, g=None):
     if isinstance(input_, tuple):
