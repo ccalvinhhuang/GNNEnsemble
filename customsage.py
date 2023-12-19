@@ -38,7 +38,9 @@ class GraphSAGELayer(nn.Module):
             self.lstm.reset_parameters()
         if self._aggre_type != "gcn":
             nn.init.xavier_uniform_(self.fc_self.weight, gain=gain)
-        nn.init.xavier_uniform_(self.fc_neigh.weight, gain=gain)
+        # nn.init.xavier_uniform_(self.fc_neigh.weight, gain=gain)
+        for i in range(20):
+            nn.init.xavier_uniform_(self.mlp_list_test[i].weight, gain=gain)
 
     def forward(self, graph, feat):
         with graph.local_scope():
