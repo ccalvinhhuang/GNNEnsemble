@@ -23,24 +23,27 @@ class GraphSAGELayer(nn.Module):
         self._out_feats = out_feats
         self._aggre_type = aggregator_type
         self.feat_drop = nn.Dropout(feat_drop)
-        self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
-        self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
-        self.mlp_list_test = nn.ModuleList([nn.Linear(self._in_dst_feats, out_feats, bias=bias) for _ in range(20)])
-        self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats, out_feats) for _ in range(5)])
+        #self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
+        #self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
+        self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats, out_feats, bias=False) for _ in range(20)])
         self.reset_parameters()
 
 
     def reset_parameters(self):
+
         gain = nn.init.calculate_gain("relu")
         if self._aggre_type == "pool":
             nn.init.xavier_uniform_(self.fc_pool.weight, gain=gain)
         if self._aggre_type == "lstm":
             self.lstm.reset_parameters()
+        gain = nn.init.calculate_gain("relu")
         if self._aggre_type != "gcn":
             nn.init.xavier_uniform_(self.fc_self.weight, gain=gain)
         # nn.init.xavier_uniform_(self.fc_neigh.weight, gain=gain)
-        for i in range(20):
-            nn.init.xavier_uniform_(self.mlp_list_test[i].weight, gain=gain)
+        for mlp in self.mlp_list:
+            nn.init.xavier_uniform_(mlp.linear1.weight, gain=gain)
+            nn.init.xavier_uniform_(mlp.linear2.weight, gain=gain)
+
 
     def forward(self, graph, feat):
         with graph.local_scope():
