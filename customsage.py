@@ -5,6 +5,17 @@ import torch.nn.functional as F
 import dgl
 import dgl.function as fn
 
+class MLP(nn.Module):
+    def __init__(self, in_feats, hidden_feats, out_feats):
+        super(MLP, self).__init__()
+        self.linear1 = nn.Linear(in_feats, hidden_feats)
+        self.linear2 = nn.Linear(hidden_feats, out_feats)
+
+    def forward(self, x):
+        x = F.relu(self.linear1(x))
+        x = self.linear2(x)
+        return x
+
 class GraphSAGELayer(nn.Module):
     def __init__(self, in_feats, out_feats, aggregator_type='mean', feat_drop=0.0, bias=True):
         super(GraphSAGELayer, self).__init__()
