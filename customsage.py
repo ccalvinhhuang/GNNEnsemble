@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import dgl
 import dgl.function as fn
-
+import random
 class MLP(nn.Module):
     def __init__(self, in_feats, hidden_feats, out_feats):
         super(MLP, self).__init__()
@@ -64,9 +64,16 @@ class GraphSAGELayer(nn.Module):
                     graph.update_all(msg_fn, fn.mean("m", "neigh"))
                     h_neigh = graph.dstdata["neigh"]
                     if not lin_before_mp:
-                        h_neigh = self.fc_neigh(h_neigh)
-
-                rst = self.fc_self(h_self) + h_neigh
+                        chosen_mlp = random.choice(self.mlp_list_test)
+                        # chosen_mlp = self.mlp_list_test[0]
+                        h_neigh = chosen_mlp(h_neigh)
+                        # h_neigh = self.fc_neigh(h_neigh)
+                # chosen_mlp = self.mlp_list[0]
+                # print(h_neigh.shape)
+                # print(h_self.shape)
+                h_self = self.fc_self(h_self)
+                # print(h_self.shape)
+                rst = h_self + h_neigh
                 return rst
 
 
