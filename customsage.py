@@ -67,10 +67,8 @@ class GraphSAGELayer(nn.Module):
                     graph.update_all(msg_fn, fn.mean("m", "neigh"))
                     h_neigh = graph.dstdata["neigh"]
                     if not lin_before_mp:
-                        chosen_mlp = random.choice(self.mlp_list_test)
-                        # chosen_mlp = self.mlp_list_test[0]
+                        chosen_mlp = random.choice(self.mlp_list)
                         h_neigh = chosen_mlp(h_neigh)
-                        # h_neigh = self.fc_neigh(h_neigh)
                 h_self = self.fc_self(h_self)
                 rst = h_self + h_neigh
                 return rst
