@@ -68,11 +68,7 @@ class GraphSAGELayer(nn.Module):
                         # chosen_mlp = self.mlp_list_test[0]
                         h_neigh = chosen_mlp(h_neigh)
                         # h_neigh = self.fc_neigh(h_neigh)
-                # chosen_mlp = self.mlp_list[0]
-                # print(h_neigh.shape)
-                # print(h_self.shape)
                 h_self = self.fc_self(h_self)
-                # print(h_self.shape)
                 rst = h_self + h_neigh
                 return rst
 
