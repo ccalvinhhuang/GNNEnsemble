@@ -25,11 +25,10 @@ class GraphSAGELayer(nn.Module):
         self.feat_drop = nn.Dropout(feat_drop)
         self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
         self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
-
-
-        self.linear1 = nn.Linear(in_feats, out_feats, bias=bias)
-        self.linear2 = nn.Linear(in_feats, out_feats, bias=bias)
+        self.mlp_list_test = nn.ModuleList([nn.Linear(self._in_dst_feats, out_feats, bias=bias) for _ in range(20)])
+        self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats, out_feats) for _ in range(5)])
         self.reset_parameters()
+
 
     def reset_parameters(self):
         gain = nn.init.calculate_gain("relu")
