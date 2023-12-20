@@ -23,7 +23,7 @@ class GraphSAGELayer(nn.Module):
         self._out_feats = out_feats
         self._aggre_type = aggregator_type
         self.feat_drop = nn.Dropout(feat_drop)
-        #self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
+        self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
         #self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
         self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats, out_feats, bias=False) for _ in range(20)])
         self.reset_parameters()
