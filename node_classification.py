@@ -14,9 +14,11 @@ from dgl.dataloading import (
     NeighborSampler,
 )
 from ogb.nodeproppred import DglNodePropPredDataset
-from dgl.data import CoraGraphDataset
-import test2 as te
+from dgl.data import CiteseerGraphDataset, CoraGraphDataset, PubmedGraphDataset, RedditDataset
+import customsage as te
+import testsage as ts
 from dgl import AddSelfLoop
+
 
 
 class SAGE(nn.Module):
