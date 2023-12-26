@@ -196,7 +196,9 @@ if __name__ == "__main__":
         AddSelfLoop()
     )
     dataset = AsNodePredDataset(CoraGraphDataset(transform=transform))
-    #dataset = AsNodePredDataset(DglNodePropPredDataset("Cora"))
+    # dataset = AsNodePredDataset(CiteseerGraphDataset(transform=transform))
+    # dataset = AsNodePredDataset(RedditDataset(transform=transform))
+    # dataset = AsNodePredDataset(FlickrDataset(transform=transform))
     g = dataset[0]
     g = g.to("cuda" if args.mode == "puregpu" else "cpu")
     num_classes = dataset.num_classes
