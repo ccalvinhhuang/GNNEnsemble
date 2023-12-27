@@ -34,9 +34,6 @@ class GraphSAGELayer(nn.Module):
             self.lstm.reset_parameters()
         if self._aggre_type != "gcn":
             nn.init.xavier_uniform_(self.fc_self.weight, gain=gain)
-        # nn.init.xavier_uniform_(self.fc_neigh.weight, gain=gain)
-        # for i in range(20):
-        # nn.init.xavier_uniform_(self.mlp_list_test[i].weight, gain=gain)
         for mlp in self.mlp_list:
             nn.init.xavier_uniform_(mlp.linear1.weight, gain=gain)
             nn.init.xavier_uniform_(mlp.linear2.weight, gain=gain)
@@ -64,10 +61,8 @@ class GraphSAGELayer(nn.Module):
                 h_neigh = graph.dstdata["neigh"]
                 if not lin_before_mp:
                     chosen_mlp = random.choice(self.mlp_list)
-                    print("hello")
                     h_neigh = chosen_mlp(h_neigh)
             h_self = self.fc_self(h_self)
-            # h_self = self.mlp_self(h_self)
             rst = h_self + h_neigh
             return rst
 
