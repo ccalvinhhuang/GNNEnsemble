@@ -14,7 +14,7 @@ from dgl.dataloading import (
     NeighborSampler,
 )
 from ogb.nodeproppred import DglNodePropPredDataset
-from dgl.data import CiteseerGraphDataset, CoraGraphDataset, PubmedGraphDataset, RedditDataset
+from dgl.data import CiteseerGraphDataset, CoraGraphDataset, FlickrDataset, RedditDataset
 import customsage as te
 import testsage as ts
 from dgl import AddSelfLoop
@@ -191,14 +191,13 @@ if __name__ == "__main__":
 
     # load and preprocess dataset
     print("Loading data")
-    #dataset = AsNodePredDataset(DglNodePropPredDataset("ogbn-products"))
     transform = (
         AddSelfLoop()
     )
-    dataset = AsNodePredDataset(CoraGraphDataset(transform=transform))
+    #dataset = AsNodePredDataset(CoraGraphDataset(transform=transform))
     # dataset = AsNodePredDataset(CiteseerGraphDataset(transform=transform))
-    # dataset = AsNodePredDataset(RedditDataset(transform=transform))
     # dataset = AsNodePredDataset(FlickrDataset(transform=transform))
+    dataset = AsNodePredDataset(RedditDataset(raw_dir = "/data/calvin/dgl", transform=transform))
     g = dataset[0]
     g = g.to("cuda" if args.mode == "puregpu" else "cpu")
     num_classes = dataset.num_classes
