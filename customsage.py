@@ -12,9 +12,7 @@ class GraphSAGELayer(nn.Module):
         self._out_feats = out_feats
         self._aggre_type = aggregator_type
         self.feat_drop = nn.Dropout(feat_drop)
-        self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
-        self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
-        self.proj_list = nn.ModuleList([nn.Linear(self._in_dst_feats, out_feats, bias=bias) for _ in range(5)])
+        self.proj_list = nn.ModuleList([nn.Linear(self._in_dst_feats, out_feats, bias=bias) for _ in range(1)])
         self.reset_parameters()
 def reset_parameters(self):
 
@@ -27,7 +25,7 @@ def reset_parameters(self):
         if self._aggre_type != "gcn":
             nn.init.xavier_uniform_(self.fc_self.weight, gain=gain)
         # nn.init.xavier_uniform_(self.fc_neigh.weight, gain=gain)
-        for i in range(5):
+        for i in range(len(self.proj_list)):
             nn.init.xavier_uniform_(self.proj_list[i].weight, gain=gain)
 
 
