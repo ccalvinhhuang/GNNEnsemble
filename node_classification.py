@@ -173,8 +173,8 @@ def train(args, device, g, dataset, model, num_classes):
                 epoch, total_loss / (it + 1), acc.item(), best_acc.item()
             )
         )
-    layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
-
+    fin_acc = layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
+    print("Fin Accuracy {:.4f}".format(fin_acc.item()))
 
 
 if __name__ == "__main__":
