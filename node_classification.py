@@ -148,8 +148,19 @@ def train(args, device, g, dataset, model, num_classes):
     opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=5e-4)
     best_model = None
     best_acc = 0
-
     for epoch in range(50):
+        if (epoch == 20 or epoch == 40):
+            for i in range(len(model.layers)):
+                for j in range(len(model.layers[i].proj_list)):
+                    new_proj = copy.deepcopy(model.layers[i].proj_list[j])
+                    noise1 = torch.randn(new_proj.weight.shape)
+                    noise1 = noise1.to("cuda:0")
+                    noise2 = torch.randn(new_proj.weight.shape)
+                    noise2 = noise2.to("cuda:0")
+                    model.layers[i].proj_list[j].weight.data.add_(noise1)
+                    new_proj.weight.data.add_(noise2)
+                    model.layers[i].proj_list.append(new_proj)
+
         model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
