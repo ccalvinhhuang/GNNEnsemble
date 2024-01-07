@@ -21,10 +21,7 @@ class GraphSAGELayer(nn.Module):
         self._out_feats = out_feats
         self._aggre_type = aggregator_type
         self.feat_drop = nn.Dropout(feat_drop)
-        self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
-        self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
-        self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats, out_feats, bias = False) for _ in range(5)])
-        self.mlp_self = MLP(self._in_dst_feats, out_feats, out_feats, bias=bias)
+        self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats, out_feats, bias = False) for _ in range(1)])
 
     def reset_parameters(self):
         gain = nn.init.calculate_gain("relu")
@@ -37,8 +34,6 @@ class GraphSAGELayer(nn.Module):
         for mlp in self.mlp_list:
             nn.init.xavier_uniform_(mlp.linear1.weight, gain=gain)
             nn.init.xavier_uniform_(mlp.linear2.weight, gain=gain)
-        nn.init.xavier_uniform_(self.mlp_self.linear1.weight, gain=gain)
-        nn.init.xavier_uniform_(self.mlp_self.linear2.weight, gain=gain)
 
     def forward(self, graph, feat):
         with graph.local_scope():
@@ -60,8 +55,14 @@ class GraphSAGELayer(nn.Module):
                 graph.update_all(msg_fn, fn.mean("m", "neigh"))
                 h_neigh = graph.dstdata["neigh"]
                 if not lin_before_mp:
-                    chosen_mlp = random.choice(self.mlp_list)
-                    h_neigh = chosen_mlp(h_neigh)
+                    if self.training:
+                        chosen_mlp = random.choice(self.mlp_list)
+                        h_neigh = chosen_mlp(h_neigh)
+                    else:
+                        proj_sum = 0
+                        for layer in self.mlp_list:
+                            proj_sum += layer(h_neigh)
+                        h_neigh = proj_sum / len(self.mlp_list)
             h_self = self.fc_self(h_self)
             rst = h_self + h_neigh
             return rst
