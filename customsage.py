@@ -51,13 +51,14 @@ def reset_parameters(self):
                 graph.update_all(msg_fn, fn.mean("m", "neigh"))
                 h_neigh = graph.dstdata["neigh"]
                 if not lin_before_mp:
-                    # chosen_mlp = self.mlp_list_test[0]
-                    #chosen_projection = random.choice(self.self.proj_list)
-                    #h_neigh = chosen_projection(h_neigh)
-                    proj_sum = 0
-                    for layer in self.proj_list:
-                        proj_sum += layer(h_neigh)
-                    h_neigh = proj_sum / len(self.proj_list)
+                    if self.training:
+                        chosen_projection = random.choice(self.proj_list)
+                        h_neigh = chosen_projection(h_neigh)
+                    else:
+                        proj_sum = 0
+                        for layer in self.proj_list:
+                            proj_sum += layer(h_neigh)
+                        h_neigh = proj_sum / len(self.proj_list)
             h_self = self.fc_self(h_self)
             rst = h_self + h_neigh
             return rst
