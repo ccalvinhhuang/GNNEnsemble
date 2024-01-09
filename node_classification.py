@@ -18,6 +18,7 @@ from dgl.data import CiteseerGraphDataset, CoraGraphDataset, FlickrDataset, Redd
 import customsage as te
 import testsage as ts
 from dgl import AddSelfLoop
+import matplotlib.pyplot as plt
 
 
 
@@ -148,6 +149,8 @@ def train(args, device, g, dataset, model, num_classes):
     opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=5e-4)
     best_model = None
     best_acc = 0
+
+    epoch_accuracies = []
     for epoch in range(50):
         if (epoch == 20 or epoch == 40):
             for i in range(len(model.layers)):
@@ -184,8 +187,10 @@ def train(args, device, g, dataset, model, num_classes):
                 epoch, total_loss / (it + 1), acc.item(), best_acc.item()
             )
         )
+        epoch_accuracies.append(best_acc.item())
     fin_acc = layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
     print("Fin Accuracy {:.4f}".format(fin_acc.item()))
+    return epoch_accuracies
 
 
 if __name__ == "__main__":
@@ -234,7 +239,7 @@ if __name__ == "__main__":
 
     # model training
     print("Training...")
-    train(args, device, g, dataset, model, num_classes)
+    epoch_accuracies = train(args, device, g, dataset, model, num_classes)
 
     # test the model
     print("Testing...")
@@ -242,3 +247,8 @@ if __name__ == "__main__":
         device, g, dataset.test_idx, model, num_classes, batch_size=4096
     )
     print("Test Accuracy {:.4f}".format(acc.item()))
+    plt.plot(epoch_accuracies)
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy vs Epochs')
+    # plt.savefig('accuracy_plot.png')
