@@ -155,14 +155,18 @@ def train(args, device, g, dataset, model, num_classes):
         if (epoch == 20 or epoch == 40):
             for i in range(len(model.layers)):
                 for j in range(len(model.layers[i].proj_list)):
+                    proj_copies = []
+                    for k in range(5):
+                        proj_copies.append(copy.deepcopy(model.layers[i].proj_list[j]))
                     new_proj = copy.deepcopy(model.layers[i].proj_list[j])
-                    noise1 = torch.randn(new_proj.weight.shape) * 0.001
-                    noise1 = noise1.to("cuda:0")
-                    noise2 = torch.randn(new_proj.weight.shape) * 0.001
-                    noise2 = noise2.to("cuda:0")
-                    model.layers[i].proj_list[j].weight.data.add_(noise1)
-                    new_proj.weight.data.add_(noise2)
-                    model.layers[i].proj_list.append(new_proj)
+                    noise = torch.randn(new_proj.weight.shape) * 0.001
+                    noise = noise.to("cuda:0")
+                    model.layers[i].proj_list[j].weight.data.add_(noise)
+                    for k in range(len(proj_copies)):
+                        noise_copy = torch.randn(proj_copies[k].weight.shape) * 0.001
+                        noise_copy = noise_copy.to("cuda:0")
+                        proj_copies[k].weight.data.add_(noise_copy)
+                        model.layers[i].proj_list.append(proj_copies[k])
 
         model.train()
         total_loss = 0
