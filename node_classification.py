@@ -151,24 +151,29 @@ def train(args, device, g, dataset, model, num_classes):
     best_acc = 0
 
     epoch_accuracies = []
-    for epoch in range(50):
+    for epoch in range(75):
+
         if (epoch == 20 or epoch == 40):
             for i in range(len(model.layers)):
                 for j in range(len(model.layers[i].proj_list)):
                     proj_copies = []
-                    for k in range(5):
+                    num_copies = 2
+                    if epoch == 40:
+                        num_copies = 1
+                    for k in range(num_copies):
                         proj_copies.append(copy.deepcopy(model.layers[i].proj_list[j]))
                     new_proj = copy.deepcopy(model.layers[i].proj_list[j])
-                    noise = torch.randn(new_proj.weight.shape) * 0.001
+                    cur_norm = torch.norm(new_proj.weight.data)
+                    noise = torch.randn(new_proj.weight.shape) * 0.005 * cur_norm.item()
                     noise = noise.to("cuda:0")
                     model.layers[i].proj_list[j].weight.data.add_(noise)
                     for k in range(len(proj_copies)):
-                        noise_copy = torch.randn(proj_copies[k].weight.shape) * 0.001
+                        noise_copy = torch.randn(proj_copies[k].weight.shape) * 0.005 * cur_norm.item()
                         noise_copy = noise_copy.to("cuda:0")
                         proj_copies[k].weight.data.add_(noise_copy)
                         model.layers[i].proj_list.append(proj_copies[k])
 
-        model.train()
+    model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
                 train_dataloader
