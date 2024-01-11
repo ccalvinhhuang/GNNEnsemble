@@ -173,7 +173,7 @@ def train(args, device, g, dataset, model, num_classes):
                         proj_copies[k].weight.data.add_(noise_copy)
                         model.layers[i].proj_list.append(proj_copies[k])
 
-    model.train()
+        model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
                 train_dataloader
@@ -189,16 +189,14 @@ def train(args, device, g, dataset, model, num_classes):
         acc = evaluate(model, g, val_dataloader, num_classes)
         if acc > best_acc:
             best_acc = acc
-            best_model = copy.copy(model)
-
+            best_model = copy.deepcopy(model)
         print(
             "Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} | Best Accuracy {:.4f}".format(
                 epoch, total_loss / (it + 1), acc.item(), best_acc.item()
             )
         )
         epoch_accuracies.append(best_acc.item())
-    fin_acc = layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
-    print("Fin Accuracy {:.4f}".format(fin_acc.item()))
+    layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
     return epoch_accuracies
 
 
