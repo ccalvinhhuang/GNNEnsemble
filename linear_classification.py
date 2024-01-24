@@ -16,7 +16,6 @@ from dgl.dataloading import (
 from ogb.nodeproppred import DglNodePropPredDataset
 from dgl.data import CiteseerGraphDataset, CoraGraphDataset, FlickrDataset, RedditDataset
 import linearsage as te
-import testsage as ts
 from dgl import AddSelfLoop
 import matplotlib.pyplot as plt
 

@@ -17,7 +17,6 @@ from ogb.nodeproppred import DglNodePropPredDataset
 from dgl.data import CiteseerGraphDataset, CoraGraphDataset, RedditDataset, FlickrDataset
 import linearsage as te
 import customsage as tr
-import testsage as ts
 from dgl import AddSelfLoop
 import matplotlib.pyplot as plt
 class SAGE(nn.Module):
