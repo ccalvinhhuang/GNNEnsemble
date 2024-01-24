@@ -25,8 +25,8 @@ class SAGE(nn.Module):
         self.layers = nn.ModuleList()
         # three-layer GraphSAGE-mean
         self.layers.append(tr.GraphSAGELayer(in_size, hid_size, "mean"))
-        self.layers.append(tr.GraphSAGELayer(hid_size, hid_size, "mean", True, True))
-        self.layers.append(tr.GraphSAGELayer(hid_size, out_size, "mean"))
+        self.layers.append(tr.GraphSAGELayer(hid_size, hid_size, "mean", 0.0, True, True, False))
+        self.layers.append(tr.GraphSAGELayer(hid_size, out_size, "mean", 0.0, True, False, True))
 
         #self.layers.append(dglnn.SAGEConv(in_size, hid_size, "mean"))
         #self.layers.append(dglnn.SAGEConv(hid_size, hid_size, "mean"))
@@ -159,7 +159,6 @@ def train(args, device, g, dataset, model, num_classes):
         if epoch == 20:
             for i in range(len(model.layers)):
                 for j in range(len(model.layers[i].mlp_list)):
-                    #add noise to current MLP (model.layers[i].mlp_list[j])
                     for name, param in model.layers[i].mlp_list[j].named_parameters():
                         if 'weight' in name:
                             cur_norm = torch.norm(param.data)
@@ -169,13 +168,11 @@ def train(args, device, g, dataset, model, num_classes):
                     copies = 2
                     for k in range(copies):
                         mlp_copy = copy.deepcopy(model.layers[i].mlp_list[j])
-                        #add noise to the mlp_copy
                         for name, param in mlp_copy.named_parameters():
                             if 'weight' in name:
                                 cur_norm = torch.norm(param.data)
                                 noise = torch.randn_like(param.data).to("cuda:0") * 0.01 * cur_norm
                                 param.data.add_(noise)
-
                         model.layers[i].mlp_list.append(mlp_copy)
 
         model.train()
