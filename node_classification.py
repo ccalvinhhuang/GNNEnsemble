@@ -28,7 +28,7 @@ class SAGE(nn.Module):
         self.layers = nn.ModuleList()
         # three-layer GraphSAGE-mean
         self.layers.append(te.GraphSAGELayer(in_size, hid_size, "mean"))
-        self.layers.append(te.GraphSAGELayer(hid_size, hid_size, "mean"))
+        self.layers.append(te.GraphSAGELayer(hid_size, hid_size, "mean", True))
         self.layers.append(te.GraphSAGELayer(hid_size, out_size, "mean"))
 
         self.dropout = nn.Dropout(0.5)
@@ -155,6 +155,20 @@ def train(args, device, g, dataset, model, num_classes):
 
         if (epoch == 20 or epoch == 40):
             for i in range(len(model.layers)):
+                for j in range(len(model.layers[i].mlp_list)):
+                    mlp_copies = []
+                    loops = 2
+                    for k in range(loops):
+                        mlp_copies.append(copy.deepcopy(model.layers[i].mlp_list[j]))
+                    #Do we edit existing MLP?
+                    for k in range(loops):
+                        noise = 1 #get the noise
+                        noise = noise.to("cuda:0")
+                        mlp_copies[k] += noise #add the noise
+                        model.layers[i].mlp_list.append(mlp_copies[k])
+
+            """
+            for i in range(len(model.layers)):
                 for j in range(len(model.layers[i].proj_list)):
                     proj_copies = []
                     num_copies = 2
@@ -172,7 +186,7 @@ def train(args, device, g, dataset, model, num_classes):
                         noise_copy = noise_copy.to("cuda:0")
                         proj_copies[k].weight.data.add_(noise_copy)
                         model.layers[i].proj_list.append(proj_copies[k])
-
+            """
         model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
