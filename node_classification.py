@@ -14,22 +14,24 @@ from dgl.dataloading import (
     NeighborSampler,
 )
 from ogb.nodeproppred import DglNodePropPredDataset
-from dgl.data import CiteseerGraphDataset, CoraGraphDataset, FlickrDataset, RedditDataset
-import customsage as te
+from dgl.data import CiteseerGraphDataset, CoraGraphDataset, RedditDataset, FlickrDataset
+import linearsage as te
+import customsage as tr
 import testsage as ts
 from dgl import AddSelfLoop
 import matplotlib.pyplot as plt
-
-
-
 class SAGE(nn.Module):
     def __init__(self, in_size, hid_size, out_size):
         super().__init__()
         self.layers = nn.ModuleList()
         # three-layer GraphSAGE-mean
-        self.layers.append(te.GraphSAGELayer(in_size, hid_size, "mean"))
-        self.layers.append(te.GraphSAGELayer(hid_size, hid_size, "mean", True))
-        self.layers.append(te.GraphSAGELayer(hid_size, out_size, "mean"))
+        self.layers.append(tr.GraphSAGELayer(in_size, hid_size, "mean"))
+        self.layers.append(tr.GraphSAGELayer(hid_size, hid_size, "mean", True, True))
+        self.layers.append(tr.GraphSAGELayer(hid_size, out_size, "mean"))
+
+        #self.layers.append(dglnn.SAGEConv(in_size, hid_size, "mean"))
+        #self.layers.append(dglnn.SAGEConv(hid_size, hid_size, "mean"))
+        #self.layers.append(dglnn.SAGEConv(hid_size, out_size, "mean"))
 
         self.dropout = nn.Dropout(0.5)
         self.hid_size = hid_size
@@ -77,11 +79,9 @@ class SAGE(nn.Module):
                     h = F.relu(h)
                     h = self.dropout(h)
                 # by design, our output nodes are contiguous
-                y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
+                y[output_nodes[0]: output_nodes[-1] + 1] = h.to(buffer_device)
             feat = y
         return y
-
-
 def evaluate(model, graph, dataloader, num_classes):
     model.eval()
     ys = []
@@ -111,7 +111,6 @@ def layerwise_infer(device, graph, nid, model, num_classes, batch_size):
             pred, label, task="multiclass", num_classes=num_classes
         )
 
-
 def train(args, device, g, dataset, model, num_classes):
     # create sampler & dataloader
     train_idx = dataset.train_idx.to(device)
@@ -121,6 +120,12 @@ def train(args, device, g, dataset, model, num_classes):
         prefetch_node_feats=["feat"],
         prefetch_labels=["label"],
     )
+    sampler_validation = NeighborSampler(
+        [1000000, 1000000, 1000000],  # fanout for [layer-0, layer-1, layer-2]
+        prefetch_node_feats=["feat"],
+        prefetch_labels=["label"],
+    )
+
     use_uva = args.mode == "mixed"
     train_dataloader = DataLoader(
         g,
@@ -137,7 +142,7 @@ def train(args, device, g, dataset, model, num_classes):
     val_dataloader = DataLoader(
         g,
         val_idx,
-        sampler,
+        sampler_validation,
         device=device,
         batch_size=1024,
         shuffle=True,
@@ -152,41 +157,28 @@ def train(args, device, g, dataset, model, num_classes):
 
     epoch_accuracies = []
     for epoch in range(75):
-
-        if (epoch == 20 or epoch == 40):
+        if epoch == 20:
             for i in range(len(model.layers)):
                 for j in range(len(model.layers[i].mlp_list)):
-                    mlp_copies = []
-                    loops = 2
-                    for k in range(loops):
-                        mlp_copies.append(copy.deepcopy(model.layers[i].mlp_list[j]))
-                    #Do we edit existing MLP?
-                    for k in range(loops):
-                        noise = 1 #get the noise
-                        noise = noise.to("cuda:0")
-                        mlp_copies[k] += noise #add the noise
-                        model.layers[i].mlp_list.append(mlp_copies[k])
+                    #add noise to current MLP (model.layers[i].mlp_list[j])
+                    for name, param in model.layers[i].mlp_list[j].named_parameters():
+                        if 'weight' in name:
+                            cur_norm = torch.norm(param.data)
+                            noise = torch.randn_like(param.data).to("cuda:0") * 0.01 * cur_norm
+                            param.data.add_(noise)
 
-            """
-            for i in range(len(model.layers)):
-                for j in range(len(model.layers[i].proj_list)):
-                    proj_copies = []
-                    num_copies = 2
-                    if epoch == 40:
-                        num_copies = 1
-                    for k in range(num_copies):
-                        proj_copies.append(copy.deepcopy(model.layers[i].proj_list[j]))
-                    new_proj = copy.deepcopy(model.layers[i].proj_list[j])
-                    cur_norm = torch.norm(new_proj.weight.data)
-                    noise = torch.randn(new_proj.weight.shape) * 0.005 * cur_norm.item()
-                    noise = noise.to("cuda:0")
-                    model.layers[i].proj_list[j].weight.data.add_(noise)
-                    for k in range(len(proj_copies)):
-                        noise_copy = torch.randn(proj_copies[k].weight.shape) * 0.005 * cur_norm.item()
-                        noise_copy = noise_copy.to("cuda:0")
-                        proj_copies[k].weight.data.add_(noise_copy)
-                        model.layers[i].proj_list.append(proj_copies[k])
-            """
+                    copies = 2
+                    for k in range(copies):
+                        mlp_copy = copy.deepcopy(model.layers[i].mlp_list[j])
+                        #add noise to the mlp_copy
+                        for name, param in mlp_copy.named_parameters():
+                            if 'weight' in name:
+                                cur_norm = torch.norm(param.data)
+                                noise = torch.randn_like(param.data).to("cuda:0") * 0.01 * cur_norm
+                                param.data.add_(noise)
+
+                        model.layers[i].mlp_list.append(mlp_copy)
+
         model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
@@ -200,10 +192,12 @@ def train(args, device, g, dataset, model, num_classes):
             loss.backward()
             opt.step()
             total_loss += loss.item()
-        acc = evaluate(model, g, val_dataloader, num_classes)
+        acc = layerwise_infer(device, g, dataset.val_idx, model, num_classes, batch_size=4096)
+        # acc = evaluate(model, g, val_dataloader, num_classes)
         if acc > best_acc:
             best_acc = acc
             best_model = copy.deepcopy(model)
+
         print(
             "Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} | Best Accuracy {:.4f}".format(
                 epoch, total_loss / (it + 1), acc.item(), best_acc.item()
@@ -212,8 +206,6 @@ def train(args, device, g, dataset, model, num_classes):
         epoch_accuracies.append(best_acc.item())
     layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
     return epoch_accuracies
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -229,6 +221,11 @@ if __name__ == "__main__":
         default="float",
         help="data type(float, bfloat16)",
     )
+    parser.add_argument(
+        "--hidden_dim",
+        type=float,
+        default=256
+    )
     args = parser.parse_args()
     if not torch.cuda.is_available():
         args.mode = "cpu"
@@ -236,13 +233,14 @@ if __name__ == "__main__":
 
     # load and preprocess dataset
     print("Loading data")
+    #dataset = AsNodePredDataset(DglNodePropPredDataset("ogbn-products"))
     transform = (
         AddSelfLoop()
     )
-    #dataset = AsNodePredDataset(CoraGraphDataset(transform=transform))
-    # dataset = AsNodePredDataset(CiteseerGraphDataset(transform=transform))
-    # dataset = AsNodePredDataset(FlickrDataset(transform=transform))
-    dataset = AsNodePredDataset(RedditDataset(raw_dir = "/data/calvin/dgl", transform=transform))
+    dataset = AsNodePredDataset(CoraGraphDataset(transform=transform))
+    #dataset = AsNodePredDataset(CiteseerGraphDataset(transform=transform))
+    #dataset = AsNodePredDataset(FlickrDataset(transform=transform))
+    #dataset = AsNodePredDataset(RedditDataset(raw_dir = "/data/calvin/dgl", transform=transform))
     g = dataset[0]
     g = g.to("cuda" if args.mode == "puregpu" else "cpu")
     num_classes = dataset.num_classes
@@ -251,7 +249,7 @@ if __name__ == "__main__":
     # create GraphSAGE model
     in_size = g.ndata["feat"].shape[1]
     out_size = dataset.num_classes
-    model = SAGE(in_size, 256, out_size).to(device)
+    model = SAGE(in_size, args.hidden_dim, out_size).to(device)
 
     # convert model and graph to bfloat16 if needed
     if args.dt == "bfloat16":
@@ -261,7 +259,6 @@ if __name__ == "__main__":
     # model training
     print("Training...")
     epoch_accuracies = train(args, device, g, dataset, model, num_classes)
-
     # test the model
     print("Testing...")
     acc = layerwise_infer(
@@ -273,3 +270,8 @@ if __name__ == "__main__":
     plt.ylabel('Accuracy')
     plt.title('Accuracy vs Epochs')
     # plt.savefig('accuracy_plot.png')
+
+
+
+
+
