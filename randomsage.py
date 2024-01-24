@@ -6,18 +6,18 @@ import dgl
 import dgl.function as fn
 import random
 class MLP(nn.Module):
-    def __init__(self, in_feats, hidden_feats, out_feats, bias = False):
+    def __init__(self, in_feats, out_feats, bias=False):
         super(MLP, self).__init__()
-        self.linear1 = nn.Linear(in_feats, hidden_feats, bias = bias)
-        self.linear2 = nn.Linear(hidden_feats, out_feats, bias = bias)
+        self.fc1 = nn.Linear(in_feats, out_feats, bias = bias)
+        self.fc2 = nn.Linear(out_feats, out_feats, bias = bias)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = F.relu(self.linear1(x))
-        x = self.linear2(x)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
         return x
-
 class GraphSAGELayer(nn.Module):
-    def __init__(self, in_feats, out_feats, aggregator_type='mean', feat_drop=0.0, bias=True):
+    def __init__(self, in_feats, out_feats, aggregator_type='mean', feat_drop=0.0, bias=True, medium_layer=False):
         super(GraphSAGELayer, self).__init__()
         self._in_src_feats, self._in_dst_feats = expand_as_pair(in_feats)
         self._out_feats = out_feats
@@ -25,8 +25,8 @@ class GraphSAGELayer(nn.Module):
         self.feat_drop = nn.Dropout(feat_drop)
         self.fc_neigh = nn.Linear(self._in_src_feats, out_feats, bias=False)
         self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
-        self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats, out_feats, bias = False) for _ in range(5)])
-        self.mlp_self = MLP(self._in_dst_feats, out_feats, out_feats, bias=bias)
+        self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats) for _ in range(1)])
+        self.medium = medium_layer
         self.reset_parameters()
 
 
@@ -38,14 +38,9 @@ class GraphSAGELayer(nn.Module):
             self.lstm.reset_parameters()
         if self._aggre_type != "gcn":
             nn.init.xavier_uniform_(self.fc_self.weight, gain=gain)
-        # nn.init.xavier_uniform_(self.fc_neigh.weight, gain=gain)
-       # for i in range(20):
-           # nn.init.xavier_uniform_(self.mlp_list_test[i].weight, gain=gain)
         for mlp in self.mlp_list:
-            nn.init.xavier_uniform_(mlp.linear1.weight, gain=gain)
-            nn.init.xavier_uniform_(mlp.linear2.weight, gain=gain)
-        nn.init.xavier_uniform_(self.mlp_self.linear1.weight, gain=gain)
-        nn.init.xavier_uniform_(self.mlp_self.linear2.weight, gain=gain)
+            nn.init.xavier_uniform_(mlp.fc1.weight, gain=gain)
+            nn.init.xavier_uniform_(mlp.fc2.weight, gain=gain)
 
     def forward(self, graph, feat):
         with graph.local_scope():
@@ -61,20 +56,33 @@ class GraphSAGELayer(nn.Module):
                 ).to(feat_dst)
 
             lin_before_mp = self._in_src_feats > self._out_feats
-
             if self._aggre_type == "mean":
                 graph.srcdata["h"] = (
-                    self.fc_neigh(feat_src) if lin_before_mp else feat_src
+                    feat_src
                 )
+
                 graph.update_all(msg_fn, fn.mean("m", "neigh"))
                 h_neigh = graph.dstdata["neigh"]
-                if not lin_before_mp:
+                if self.medium:
+                    mlp_input = h_neigh
+
+                if self.training:
                     chosen_mlp = random.choice(self.mlp_list)
                     h_neigh = chosen_mlp(h_neigh)
+                else:
+                    mlp_sum = 0
+                    for mlp in self.mlp_list:
+                        mlp_sum += mlp(h_neigh)
+                    h_neigh = mlp_sum / len(self.mlp_list)
+
+                if self.medium:
+                    h_neigh += mlp_input
+
             h_self = self.fc_self(h_self)
-            # h_self = self.mlp_self(h_self)
             rst = h_self + h_neigh
+
             return rst
+
 def expand_as_pair(input_, g=None):
     if isinstance(input_, tuple):
         return input_
@@ -89,3 +97,5 @@ def expand_as_pair(input_, g=None):
         return input_, input_dst
     else:
         return input_, input_
+
+
