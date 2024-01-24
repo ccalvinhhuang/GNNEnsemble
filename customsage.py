@@ -23,7 +23,7 @@ class MLP(nn.Module):
 
 
 class GraphSAGELayer(nn.Module):
-    def __init__(self, in_feats, out_feats, aggregator_type='mean', feat_drop=0.0, bias=True, medium_layer=False):
+    def __init__(self, in_feats, out_feats, aggregator_type='mean', feat_drop=0.0, bias=True, medium_layer=False, last_layer=False):
         super(GraphSAGELayer, self).__init__()
         self._in_src_feats, self._in_dst_feats = expand_as_pair(in_feats)
         self._out_feats = out_feats
@@ -33,6 +33,7 @@ class GraphSAGELayer(nn.Module):
         self.fc_self = nn.Linear(self._in_dst_feats, out_feats, bias=bias)
         self.mlp_list = nn.ModuleList([MLP(self._in_src_feats, out_feats) for _ in range(1)])
         self.medium = medium_layer
+        self.last_layer = last_layer
         self.reset_parameters()
 
 
@@ -84,10 +85,14 @@ class GraphSAGELayer(nn.Module):
                 if self.medium:
                     h_neigh += mlp_input
 
+            if not self.last_layer:
+                h_neigh = F.relu(h_neigh)
+
             h_self = self.fc_self(h_self)
             rst = h_self + h_neigh
 
             return rst
+
 def expand_as_pair(input_, g=None):
     if isinstance(input_, tuple):
         return input_
@@ -102,4 +107,3 @@ def expand_as_pair(input_, g=None):
         return input_, input_dst
     else:
         return input_, input_
-
