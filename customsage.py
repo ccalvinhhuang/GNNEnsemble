@@ -6,7 +6,7 @@ import dgl
 import dgl.function as fn
 import random
 class MLP(nn.Module):
-    def __init__(self, in_feats, out_feats, bias=False):
+    def __init__(self, in_feats, out_feats, bias=True):
         super(MLP, self).__init__()
         self.linear1 = nn.Linear(in_feats, out_feats, bias = bias)
         self.batch1 = nn.BatchNorm1d(out_feats)
