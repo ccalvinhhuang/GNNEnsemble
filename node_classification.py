@@ -14,11 +14,27 @@ from dgl.dataloading import (
     NeighborSampler,
 )
 from ogb.nodeproppred import DglNodePropPredDataset
-from dgl.data import CiteseerGraphDataset, CoraGraphDataset, RedditDataset, FlickrDataset
-import linearsage as te
-import customsage as tr
+from dgl.data import CiteseerGraphDataset, CoraGraphDataset, RedditDataset, FlickrDataset, YelpDataset
+import customsage as te
+import randomsage as tr
+import testsage as ts
 from dgl import AddSelfLoop
 import matplotlib.pyplot as plt
+
+def load_ogb_dataset(name):
+    dataset = DglNodePropPredDataset(name=name)
+    split_idx = dataset.get_idx_split()
+    g, label = dataset[0]
+    n_node = g.num_nodes()
+    node_data = g.ndata
+    node_data['label'] = label.view(-1).long()
+    node_data['train_mask'] = torch.zeros(n_node, dtype=torch.bool)
+    node_data['val_mask'] = torch.zeros(n_node, dtype=torch.bool)
+    node_data['test_mask'] = torch.zeros(n_node, dtype=torch.bool)
+    node_data['train_mask'][split_idx["train"]] = True
+    node_data['val_mask'][split_idx["valid"]] = True
+    node_data['test_mask'][split_idx["test"]] = True
+    return g, dataset, split_idx
 
 class SAGE(nn.Module):
     def __init__(self, in_size, hid_size, out_size, original):
@@ -112,10 +128,15 @@ def layerwise_infer(device, graph, nid, model, num_classes, batch_size):
             pred, label, task="multiclass", num_classes=num_classes
         )
 
-def train(args, device, g, dataset, model, num_classes):
+def train(args, device, g, dataset, split_idx, model, num_classes):
     # create sampler & dataloader
-    train_idx = dataset.train_idx.to(device)
-    val_idx = dataset.val_idx.to(device)
+
+    if args.dataset == "ogbn-products" or args.dataset == "ogbn-arxiv":
+        train_idx = split_idx["train"]
+        val_idx = split_idx["valid"]
+    else:
+        train_idx = dataset.train_idx.to(device)
+        val_idx = dataset.val_idx.to(device)
 
     sampler = NeighborSampler(
         [10, 10, 10],  # fanout for [layer-0, layer-1, layer-2]
@@ -152,12 +173,12 @@ def train(args, device, g, dataset, model, num_classes):
         num_workers=0,
         use_uva=use_uva,
     )
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=5e-4)
+
+opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=5e-4)
     best_model = None
     best_acc = 0
-    # 40, 20
+    #40, 20
     epoch_accuracies = []
-
     for epoch in range(40):
         if args.orig == False:
             if epoch == 20:
@@ -179,6 +200,7 @@ def train(args, device, g, dataset, model, num_classes):
                                     param.data.add_(noise)
 
                         model.layers[i].mlp_list.append(mlp_copy)
+
         model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
@@ -192,18 +214,28 @@ def train(args, device, g, dataset, model, num_classes):
             loss.backward()
             opt.step()
             total_loss += loss.item()
-        acc = layerwise_infer(device, g, dataset.val_idx, model, num_classes, batch_size=4096)
-        # acc = evaluate(model, g, val_dataloader, num_classes)
+
+if args.dataset == "ogbn-products" or args.dataset == "ogbn-arxiv":
+            acc = layerwise_infer(device, g, split_idx["valid"], model, num_classes, batch_size=4096)
+        else:
+            acc = layerwise_infer(device, g, dataset.val_idx, model, num_classes, batch_size=4096)
+        #acc = evaluate(model, g, val_dataloader, num_classes)
         if acc > best_acc:
             best_acc = acc
             best_model = copy.deepcopy(model)
+
         print(
-            "Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} | Best Accuracy {:.4f}".format(
+                "Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} | Best Accuracy {:.4f}".format(
                 epoch, total_loss / (it + 1), acc.item(), best_acc.item()
             )
         )
         epoch_accuracies.append(best_acc.item())
-    layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
+
+    if args.dataset == "ogbn-products" or args.dataset == "ogbn-arxiv":
+        layerwise_infer(device, g, split_idx["valid"], model, num_classes, batch_size=4096)
+    else:
+        layerwise_infer(device, g, dataset.val_idx, model, num_classes, batch_size=4096)
+
     return epoch_accuracies
 
 if __name__ == "__main__":
@@ -252,13 +284,13 @@ if __name__ == "__main__":
     elif args.dataset == "Flickr":
         dataset = AsNodePredDataset(FlickrDataset(transform=transform))
         g = dataset[0]
-    elif args.dataset == "obgn-products":
-        print("hello")
-    elif args.dataset == "obgn-arxiv":
-        print("bruh")
+    elif args.dataset == "ogbn-products":
+        g, dataset, split_idx = load_ogb_dataset("ogbn-products")
+    elif args.dataset == "ogbn-arxiv":
+        g, dataset, split_idx = load_ogb_dataset("ogbn-arxiv")
     elif args.dataset == "Yelp":
         print("to be added")
-    # g = dataset[0]
+
     g = g.to("cuda" if args.mode == "puregpu" else "cpu")
     num_classes = dataset.num_classes
     device = torch.device("cpu" if args.mode == "cpu" else "cuda")
@@ -275,7 +307,7 @@ if __name__ == "__main__":
 
     # model training
     print("Training...")
-    epoch_accuracies = train(args, device, g, dataset, model, num_classes)
+    epoch_accuracies = train(args, device, g, dataset, split_idx, model, num_classes)
 
     # test the model
     print("Testing...")
