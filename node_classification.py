@@ -19,6 +19,7 @@ import linearsage as te
 import customsage as tr
 from dgl import AddSelfLoop
 import matplotlib.pyplot as plt
+
 class SAGE(nn.Module):
     def __init__(self, in_size, hid_size, out_size, original):
         super().__init__()
@@ -82,6 +83,7 @@ class SAGE(nn.Module):
                 y[output_nodes[0]: output_nodes[-1] + 1] = h.to(buffer_device)
             feat = y
         return y
+
 def evaluate(model, graph, dataloader, num_classes):
     model.eval()
     ys = []
@@ -97,7 +99,6 @@ def evaluate(model, graph, dataloader, num_classes):
         task="multiclass",
         num_classes=num_classes,
     )
-
 
 def layerwise_infer(device, graph, nid, model, num_classes, batch_size):
     model.eval()
@@ -156,6 +157,7 @@ def train(args, device, g, dataset, model, num_classes):
     best_acc = 0
     # 40, 20
     epoch_accuracies = []
+
     for epoch in range(40):
         if args.orig == False:
             if epoch == 20:
@@ -177,7 +179,6 @@ def train(args, device, g, dataset, model, num_classes):
                                     param.data.add_(noise)
 
                         model.layers[i].mlp_list.append(mlp_copy)
-
         model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
@@ -196,7 +197,6 @@ def train(args, device, g, dataset, model, num_classes):
         if acc > best_acc:
             best_acc = acc
             best_model = copy.deepcopy(model)
-
         print(
             "Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} | Best Accuracy {:.4f}".format(
                 epoch, total_loss / (it + 1), acc.item(), best_acc.item()
@@ -258,7 +258,6 @@ if __name__ == "__main__":
         print("bruh")
     elif args.dataset == "Yelp":
         print("to be added")
-
     # g = dataset[0]
     g = g.to("cuda" if args.mode == "puregpu" else "cpu")
     num_classes = dataset.num_classes
