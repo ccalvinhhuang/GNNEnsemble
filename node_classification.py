@@ -155,27 +155,28 @@ def train(args, device, g, dataset, model, num_classes):
     best_acc = 0
 
     epoch_accuracies = []
-    for epoch in range(75):
+    for epoch in range(40):
         if epoch == 20:
             for i in range(len(model.layers)):
                 for j in range(len(model.layers[i].mlp_list)):
                     for name, param in model.layers[i].mlp_list[j].named_parameters():
                         if 'weight' in name:
                             cur_norm = torch.norm(param.data)
-                            noise = torch.randn_like(param.data).to("cuda:0") * 0.01 * cur_norm
+                            noise = torch.randn_like(param.data).to("cuda:0") * 0.001 * cur_norm
                             param.data.add_(noise)
 
-                    copies = 2
+                    copies = 3
                     for k in range(copies):
                         mlp_copy = copy.deepcopy(model.layers[i].mlp_list[j])
                         for name, param in mlp_copy.named_parameters():
                             if 'weight' in name:
                                 cur_norm = torch.norm(param.data)
-                                noise = torch.randn_like(param.data).to("cuda:0") * 0.01 * cur_norm
+                                noise = torch.randn_like(param.data).to("cuda:0") * 0.001 * cur_norm
                                 param.data.add_(noise)
+
                         model.layers[i].mlp_list.append(mlp_copy)
 
-        model.train()
+    model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
                 train_dataloader
