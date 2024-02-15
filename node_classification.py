@@ -190,7 +190,6 @@ def train(args, device, g, dataset, model, num_classes):
             opt.step()
             total_loss += loss.item()
         acc = layerwise_infer(device, g, dataset.val_idx, model, num_classes, batch_size=4096)
-        # acc = evaluate(model, g, val_dataloader, num_classes)
         if acc > best_acc:
             best_acc = acc
             best_model = copy.deepcopy(model)
@@ -205,6 +204,11 @@ def train(args, device, g, dataset, model, num_classes):
     return epoch_accuracies
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="Reddit"
+    )
     parser.add_argument(
         "--mode",
         default="mixed",
@@ -234,10 +238,17 @@ if __name__ == "__main__":
     transform = (
         AddSelfLoop()
     )
-    dataset = AsNodePredDataset(CoraGraphDataset(transform=transform))
-    #dataset = AsNodePredDataset(CiteseerGraphDataset(transform=transform))
-    #dataset = AsNodePredDataset(FlickrDataset(transform=transform))
-    #dataset = AsNodePredDataset(RedditDataset(raw_dir = "/data/calvin/dgl", transform=transform))
+    if args.dataset == "Reddit":
+        dataset = AsNodePredDataset(RedditDataset(raw_dir="/data/calvin/dgl", transform=transform))
+    elif args.dataset == "Flickr":
+        dataset = AsNodePredDataset(FlickrDataset(transform=transform))
+    elif args.dataset == "obgn-products":
+        print("to be added")
+    elif args.dataset == "obgn-arxiv":
+        print("to be added")
+    elif args.dataset == "Yelp":
+        print("to be added")
+
     g = dataset[0]
     g = g.to("cuda" if args.mode == "puregpu" else "cpu")
     num_classes = dataset.num_classes
