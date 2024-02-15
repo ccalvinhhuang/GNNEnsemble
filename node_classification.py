@@ -20,17 +20,18 @@ import customsage as tr
 from dgl import AddSelfLoop
 import matplotlib.pyplot as plt
 class SAGE(nn.Module):
-    def __init__(self, in_size, hid_size, out_size):
+    def __init__(self, in_size, hid_size, out_size, original):
         super().__init__()
         self.layers = nn.ModuleList()
         # three-layer GraphSAGE-mean
-        self.layers.append(tr.GraphSAGELayer(in_size, hid_size, "mean"))
-        self.layers.append(tr.GraphSAGELayer(hid_size, hid_size, "mean", 0.0, True, True, False))
-        self.layers.append(tr.GraphSAGELayer(hid_size, out_size, "mean", 0.0, True, False, True))
-
-        #self.layers.append(dglnn.SAGEConv(in_size, hid_size, "mean"))
-        #self.layers.append(dglnn.SAGEConv(hid_size, hid_size, "mean"))
-        #self.layers.append(dglnn.SAGEConv(hid_size, out_size, "mean"))
+        if original == False:
+            self.layers.append(tr.GraphSAGELayer(in_size, hid_size, "mean"))
+            self.layers.append(tr.GraphSAGELayer(hid_size, hid_size, "mean", 0.0, True, True, False))
+            self.layers.append(tr.GraphSAGELayer(hid_size, out_size, "mean", 0.0, True, False, True))
+        else:
+            self.layers.append(dglnn.SAGEConv(in_size, hid_size, "mean"))
+            self.layers.append(dglnn.SAGEConv(hid_size, hid_size, "mean"))
+            self.layers.append(dglnn.SAGEConv(hid_size, out_size, "mean"))
 
         self.dropout = nn.Dropout(0.5)
         self.hid_size = hid_size
@@ -114,6 +115,7 @@ def train(args, device, g, dataset, model, num_classes):
     # create sampler & dataloader
     train_idx = dataset.train_idx.to(device)
     val_idx = dataset.val_idx.to(device)
+
     sampler = NeighborSampler(
         [10, 10, 10],  # fanout for [layer-0, layer-1, layer-2]
         prefetch_node_feats=["feat"],
@@ -149,34 +151,34 @@ def train(args, device, g, dataset, model, num_classes):
         num_workers=0,
         use_uva=use_uva,
     )
-
     opt = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=5e-4)
     best_model = None
     best_acc = 0
-
+    # 40, 20
     epoch_accuracies = []
     for epoch in range(40):
-        if epoch == 20:
-            for i in range(len(model.layers)):
-                for j in range(len(model.layers[i].mlp_list)):
-                    for name, param in model.layers[i].mlp_list[j].named_parameters():
-                        if 'weight' in name:
-                            cur_norm = torch.norm(param.data)
-                            noise = torch.randn_like(param.data).to("cuda:0") * 0.001 * cur_norm
-                            param.data.add_(noise)
-
-                    copies = 3
-                    for k in range(copies):
-                        mlp_copy = copy.deepcopy(model.layers[i].mlp_list[j])
-                        for name, param in mlp_copy.named_parameters():
+        if args.orig == False:
+            if epoch == 20:
+                for i in range(len(model.layers)):
+                    for j in range(len(model.layers[i].mlp_list)):
+                        for name, param in model.layers[i].mlp_list[j].named_parameters():
                             if 'weight' in name:
                                 cur_norm = torch.norm(param.data)
                                 noise = torch.randn_like(param.data).to("cuda:0") * 0.001 * cur_norm
                                 param.data.add_(noise)
 
+                        copies = 3
+                        for k in range(copies):
+                            mlp_copy = copy.deepcopy(model.layers[i].mlp_list[j])
+                            for name, param in mlp_copy.named_parameters():
+                                if 'weight' in name:
+                                    cur_norm = torch.norm(param.data)
+                                    noise = torch.randn_like(param.data).to("cuda:0") * 0.001 * cur_norm
+                                    param.data.add_(noise)
+
                         model.layers[i].mlp_list.append(mlp_copy)
 
-    model.train()
+        model.train()
         total_loss = 0
         for it, (input_nodes, output_nodes, blocks) in enumerate(
                 train_dataloader
@@ -190,6 +192,7 @@ def train(args, device, g, dataset, model, num_classes):
             opt.step()
             total_loss += loss.item()
         acc = layerwise_infer(device, g, dataset.val_idx, model, num_classes, batch_size=4096)
+        # acc = evaluate(model, g, val_dataloader, num_classes)
         if acc > best_acc:
             best_acc = acc
             best_model = copy.deepcopy(model)
@@ -202,8 +205,14 @@ def train(args, device, g, dataset, model, num_classes):
         epoch_accuracies.append(best_acc.item())
     layerwise_infer(device, g, dataset.test_idx, best_model, num_classes, batch_size=4096)
     return epoch_accuracies
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--orig",
+        type=bool,
+        default=False
+    )
     parser.add_argument(
         "--dataset",
         type=str,
@@ -234,22 +243,23 @@ if __name__ == "__main__":
 
     # load and preprocess dataset
     print("Loading data")
-    #dataset = AsNodePredDataset(DglNodePropPredDataset("ogbn-products"))
     transform = (
         AddSelfLoop()
     )
     if args.dataset == "Reddit":
         dataset = AsNodePredDataset(RedditDataset(raw_dir="/data/calvin/dgl", transform=transform))
+        g = dataset[0]
     elif args.dataset == "Flickr":
         dataset = AsNodePredDataset(FlickrDataset(transform=transform))
+        g = dataset[0]
     elif args.dataset == "obgn-products":
-        print("to be added")
+        print("hello")
     elif args.dataset == "obgn-arxiv":
-        print("to be added")
+        print("bruh")
     elif args.dataset == "Yelp":
         print("to be added")
 
-    g = dataset[0]
+    # g = dataset[0]
     g = g.to("cuda" if args.mode == "puregpu" else "cpu")
     num_classes = dataset.num_classes
     device = torch.device("cpu" if args.mode == "cpu" else "cuda")
@@ -257,7 +267,7 @@ if __name__ == "__main__":
     # create GraphSAGE model
     in_size = g.ndata["feat"].shape[1]
     out_size = dataset.num_classes
-    model = SAGE(in_size, args.hidden_dim, out_size).to(device)
+    model = SAGE(in_size, args.hidden_dim, out_size, args.orig).to(device)
 
     # convert model and graph to bfloat16 if needed
     if args.dt == "bfloat16":
@@ -267,6 +277,7 @@ if __name__ == "__main__":
     # model training
     print("Training...")
     epoch_accuracies = train(args, device, g, dataset, model, num_classes)
+
     # test the model
     print("Testing...")
     acc = layerwise_infer(
@@ -277,9 +288,4 @@ if __name__ == "__main__":
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
     plt.title('Accuracy vs Epochs')
-    # plt.savefig('accuracy_plot.png')
-
-
-
-
-
+    plt.savefig('yelp_plot.png')
